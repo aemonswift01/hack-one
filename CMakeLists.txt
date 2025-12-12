@@ -36,7 +36,7 @@ endif()
 
 #     message(STATUS "folly not found, downloading via FetchContent...")
 
-#     FetchContent_Declare(jsoncpp
+#     FetchContent_Declare(folly
 #     URL https://github.com/facebook/folly/releases/download/v2025.11.24.00/folly-v2025.11.24.00.tar.gz)
 #     FetchContent_MakeAvailable(folly)
 # endif()
@@ -49,7 +49,12 @@ endif()
 
 #     message(STATUS "roaring not found, downloading via FetchContent...")
 
-#     FetchContent_Declare(jsoncpp
+#     FetchContent_Declare(roaring
 #     URL https://github.com/RoaringBitmap/CRoaring/archive/refs/tags/v4.5.0.tar.gz)
 #     FetchContent_MakeAvailable(roaring)
 # endif()
+
+add_subdirectory(src)
+
+add_subdirectory(tests)
+
