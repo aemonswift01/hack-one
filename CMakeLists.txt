@@ -14,32 +14,34 @@ if(NOT jsoncpp_FOUND)
 
     message(STATUS "jsoncpp not found, downloading via FetchContent...")
 
+    set(FETCHCONTENT_SOURCE_DIR_JSONCPP /home/aemon/Program/cpath/hack-one/3rds/jsoncpp-1.9.4)
+    
     FetchContent_Declare(jsoncpp
     URL https://github.com/open-source-parsers/jsoncpp/archive/1.9.4.tar.gz)
     FetchContent_MakeAvailable(jsoncpp)
 endif()
 
-find_package(folly CONFIG QUIET)
+# find_package(folly CONFIG QUIET)
 
-if(NOT folly_FOUND)
-    include(FetchContent)
+# if(NOT folly_FOUND)
+#     include(FetchContent)
 
-    message(STATUS "folly not found, downloading via FetchContent...")
+#     message(STATUS "folly not found, downloading via FetchContent...")
 
-    FetchContent_Declare(jsoncpp
-    URL https://github.com/facebook/folly/releases/download/v2025.11.24.00/folly-v2025.11.24.00.tar.gz)
-    FetchContent_MakeAvailable(folly)
-endif()
+#     FetchContent_Declare(jsoncpp
+#     URL https://github.com/facebook/folly/releases/download/v2025.11.24.00/folly-v2025.11.24.00.tar.gz)
+#     FetchContent_MakeAvailable(folly)
+# endif()
 
 
-find_package(roaring CONFIG QUIET)
+# find_package(roaring CONFIG QUIET)
 
-if(NOT roaring_FOUND)
-    include(FetchContent)
+# if(NOT roaring_FOUND)
+#     include(FetchContent)
 
-    message(STATUS "roaring not found, downloading via FetchContent...")
+#     message(STATUS "roaring not found, downloading via FetchContent...")
 
-    FetchContent_Declare(jsoncpp
-    URL https://github.com/RoaringBitmap/CRoaring/archive/refs/tags/v4.5.0.tar.gz)
-    FetchContent_MakeAvailable(roaring)
-endif()
+#     FetchContent_Declare(jsoncpp
+#     URL https://github.com/RoaringBitmap/CRoaring/archive/refs/tags/v4.5.0.tar.gz)
+#     FetchContent_MakeAvailable(roaring)
+# endif()
