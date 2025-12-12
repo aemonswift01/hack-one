@@ -1,6 +1,14 @@
 cmake_minimum_required(VERSION 3.20)
 project(hack-one LANGUAGES CXX)
 set(FETCHCONTENT_BASE_DIR ${PROJECT_SOURCE_DIR}/deps)
+set(PROJECT_3RDS_DIR)
+
+if (DEFINED PROJECT_3RDS_DIR)
+    message("DEFINE PROJECT_3RDS_DIR ${PROJECT_3RDS_DIR}")
+else()
+    set(PROJECT_3RDS_DIR ${PROJECT_SOURCE_DIR}/3rds)
+    message("NEE DEFINE  PROJECT_3RDS_DIR ${PROJECT_3RDS_DIR}")
+endif()
 
 if(POLICY CMP0135)
   cmake_policy(SET CMP0135 NEW)
@@ -14,7 +22,7 @@ if(NOT jsoncpp_FOUND)
 
     message(STATUS "jsoncpp not found, downloading via FetchContent...")
 
-    set(FETCHCONTENT_SOURCE_DIR_JSONCPP /home/aemon/Program/cpath/hack-one/3rds/jsoncpp-1.9.4)
+    set(FETCHCONTENT_SOURCE_DIR_JSONCPP ${PROJECT_3RDS_DIR}/jsoncpp-1.9.4)
     
     FetchContent_Declare(jsoncpp
     URL https://github.com/open-source-parsers/jsoncpp/archive/1.9.4.tar.gz)
