@@ -27,7 +27,7 @@ if(NOT folly_FOUND)
     message(STATUS "folly not found, downloading via FetchContent...")
 
     FetchContent_Declare(jsoncpp
-    URL https://github.com/open-source-parsers/jsoncpp/archive/1.9.4.tar.gz)
+    URL https://github.com/facebook/folly/releases/download/v2025.11.24.00/folly-v2025.11.24.00.tar.gz)
     FetchContent_MakeAvailable(folly)
 endif()
 
@@ -40,6 +40,6 @@ if(NOT roaring_FOUND)
     message(STATUS "roaring not found, downloading via FetchContent...")
 
     FetchContent_Declare(jsoncpp
-    URL https://github.com/open-source-parsers/jsoncpp/archive/1.9.4.tar.gz)
+    URL https://github.com/RoaringBitmap/CRoaring/archive/refs/tags/v4.5.0.tar.gz)
     FetchContent_MakeAvailable(roaring)
 endif()
