@@ -1,4 +1,4 @@
-#include "src/compute/k_hop_count.h"
+#include "k_hop_count.h"
 #include <iostream>
 
 using namespace std;

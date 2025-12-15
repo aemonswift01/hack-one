@@ -15,19 +15,19 @@ if(POLICY CMP0135)
 endif()
 
 
-find_package(jsoncpp CONFIG QUIET)
+# find_package(jsoncpp CONFIG QUIET)
 
-if(NOT jsoncpp_FOUND)
-    include(FetchContent)
+# if(NOT jsoncpp_FOUND)
+#     include(FetchContent)
 
-    message(STATUS "jsoncpp not found, downloading via FetchContent...")
+#     message(STATUS "jsoncpp not found, downloading via FetchContent...")
 
-    set(FETCHCONTENT_SOURCE_DIR_JSONCPP ${PROJECT_3RDS_DIR}/jsoncpp-1.9.4)
+#     set(FETCHCONTENT_SOURCE_DIR_JSONCPP ${PROJECT_3RDS_DIR}/jsoncpp-1.9.4)
     
-    FetchContent_Declare(jsoncpp
-    URL https://github.com/open-source-parsers/jsoncpp/archive/1.9.4.tar.gz)
-    FetchContent_MakeAvailable(jsoncpp)
-endif()
+#     FetchContent_Declare(jsoncpp
+#     URL https://github.com/open-source-parsers/jsoncpp/archive/1.9.4.tar.gz)
+#     FetchContent_MakeAvailable(jsoncpp)
+# endif()
 
 # find_package(folly CONFIG QUIET)
 
