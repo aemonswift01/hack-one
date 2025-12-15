@@ -1,3 +1,4 @@
+#include "server.h"
 #include <assert.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
@@ -33,7 +34,6 @@ void initBuf() {
         ;
     memcpy(resbuf, format, lg);
     len = lg - 1;
-    std::cout << "len:" << len << std::endl;
 }
 
 // 简易 HTTP 请求解析器（仅处理单次 recv 的完整请求）
@@ -55,9 +55,6 @@ int makeResponse(int count) {
         ;
     memcpy(resbuf + len, temp, lg - 1);
     resbuf[len + lg - 1] = '}';
-
-    // std::cout << resbuf[len - 1] << resbuf[len] << resbuf[len + lg - 1]
-    //           << resbuf[len + lg] << std::endl;
 
     return len + lg - 1;
 }
@@ -110,14 +107,13 @@ void runServer(int port) {
         }
 
         // 接收请求（简单：一次 recv，假设请求完整）
-        char buffer[4096];
+        char buffer[1024];
         ssize_t bytes = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
         if (bytes <= 0) {
             close(client_fd);
             continue;
         }
         buffer[bytes] = '\0';
-        std::cout << "Recevie data" << std::endl;
 
         std::string_view requestStr(buffer + 5);  //POST离开
         HttpRequest req = parseHttpRequest(requestStr);
@@ -138,12 +134,3 @@ void runServer(int port) {
 }
 
 // ===== 主函数 =====
-// int main(int argc, char* argv[]) {
-//     int port = 8080;
-//     if (argc > 1) {
-//         port = std::stoi(argv[1]);
-//     }
-//     initBuf();
-//     runServer(port);
-//     return 0;
-// }
