@@ -2,7 +2,6 @@
 #include "graph_storage.h"
 #include <cmath>
 #include <cstring>
-#include <filesystem>
 #include <iostream>
 #include <queue>
 #include <set>
@@ -33,46 +32,8 @@ uint32_t DecodeVarint(const uint8_t*& data) {
     return value;
 }
 
-GraphStorage::GraphStorage(const std::string& base_dir) {
-    std::filesystem::create_directories(base_dir);
-    std::string forward_offsets_path = base_dir + "/forward_offsets.bin";
-    std::string forward_neighbors_path = base_dir + "/forward_neighbors.bin";
-    std::string backward_offsets_path = base_dir + "/backward_offsets.bin";
-    std::string backward_neighbors_path = base_dir + "/backward_neighbors.bin";
-    std::string id_to_str_path = base_dir + "/id_to_str.bin";
-
-    if (std::filesystem::exists(forward_offsets_path)) {
-        MapFile(forward_offsets_path, forward_offsets_, true);
-        MapFile(forward_neighbors_path, forward_neighbors_, true);
-        MapFile(backward_offsets_path, backward_offsets_, true);
-        MapFile(backward_neighbors_path, backward_neighbors_, true);
-
-        std::ifstream id_file(id_to_str_path, std::ios::binary);
-        if (id_file) {
-            uint32_t count;
-            id_file.read(reinterpret_cast<char*>(&count), sizeof(count));
-            id_to_str_.resize(count);
-            for (uint32_t i = 0; i < count; ++i) {
-                uint32_t len;
-                id_file.read(reinterpret_cast<char*>(&len), sizeof(len));
-                std::string str(len, '\0');
-                id_file.read(&str[0], len);
-                id_to_str_[i] = str;
-                str_to_id_[str] = i;
-            }
-            node_count_ = count;
-        }
-    }
-}
-
-GraphStorage::~GraphStorage() {
-    UnmapFile(forward_offsets_);
-    UnmapFile(forward_neighbors_);
-    UnmapFile(backward_offsets_);
-    UnmapFile(backward_neighbors_);
-}
-
-void GraphStorage::MapFile(const std::string& path, CSR& csr, bool read_only) {
+void GraphStorage::MapFile(const std::string& path, CSR& csr,
+                           bool read_only) const {
     int fd = open(path.c_str(), read_only ? O_RDONLY : O_RDWR);
     if (fd == -1)
         throw std::runtime_error("Failed to open file: " + path);
@@ -97,11 +58,13 @@ void GraphStorage::MapFile(const std::string& path, CSR& csr, bool read_only) {
     csr.is_mapped = true;
 }
 
-void GraphStorage::UnmapFile(CSR& csr) {
+void GraphStorage::UnmapFile(CSR& csr) const {
     if (csr.is_mapped) {
         munmap(csr.data, csr.size);
         close(csr.fd);
         csr.is_mapped = false;
+        csr.data = nullptr;
+        csr.fd = -1;
     }
 }
 
@@ -154,127 +117,214 @@ std::vector<uint8_t> GraphStorage::ReadBinaryFile(const std::string& path) {
     return data;
 }
 
+GraphStorage::GraphStorage(const std::string& base_dir) {
+    // 初始化 CSR 结构
+    forward_offsets_ = {-1, nullptr, 0, false};
+    forward_neighbors_ = {-1, nullptr, 0, false};
+    backward_offsets_ = {-1, nullptr, 0, false};
+    backward_neighbors_ = {-1, nullptr, 0, false};
+
+    std::string forward_offsets_path = base_dir + "/forward_offsets.bin";
+    std::string forward_neighbors_path = base_dir + "/forward_neighbors.bin";
+    std::string backward_offsets_path = base_dir + "/backward_offsets.bin";
+    std::string backward_neighbors_path = base_dir + "/backward_neighbors.bin";
+    std::string id_to_str_path = base_dir + "/id_to_str.bin";
+
+    if (std::filesystem::exists(forward_offsets_path)) {
+        const_cast<GraphStorage*>(this)->MapFile(forward_offsets_path,
+                                                 forward_offsets_, true);
+        const_cast<GraphStorage*>(this)->MapFile(forward_neighbors_path,
+                                                 forward_neighbors_, true);
+
+        // 流式加载节点映射
+        std::ifstream id_file(id_to_str_path, std::ios::binary);
+        if (id_file) {
+            uint32_t count;
+            id_file.read(reinterpret_cast<char*>(&count), sizeof(count));
+            id_to_str_.resize(count);
+            for (uint32_t i = 0; i < count; ++i) {
+                uint32_t len;
+                id_file.read(reinterpret_cast<char*>(&len), sizeof(len));
+                std::string str(len, '\0');
+                id_file.read(&str[0], len);
+                id_to_str_[i] = str;
+                str_to_id_[str] = i;
+            }
+            node_count_ = count;
+        }
+    }
+}
+
+GraphStorage::~GraphStorage() {
+    UnmapFile(forward_offsets_);
+    UnmapFile(forward_neighbors_);
+    UnmapFile(backward_offsets_);
+    UnmapFile(backward_neighbors_);
+}
+
 void GraphStorage::BuildFromCSV(const std::string& csv_path) {
-    // 第一步：收集所有节点字符串
-    std::unordered_map<std::string, uint32_t> str_to_id;
-    std::vector<std::string> id_to_str;
-    std::unordered_map<std::string, uint32_t> str_to_id_temp;
-    std::vector<std::string> all_nodes;
+    std::string base_dir =
+        std::filesystem::path(csv_path).parent_path().string() + "/graph_data";
+    std::filesystem::create_directories(base_dir);
+
+    // 第一步：收集所有节点字符串（使用临时文件）
+    std::string nodes_temp = base_dir + "/nodes_temp.bin";
+    std::ofstream nodes_out(nodes_temp, std::ios::binary);
 
     std::ifstream csv_file(csv_path);
     if (!csv_file)
         throw std::runtime_error("Failed to open CSV file");
 
     std::string line;
+    uint64_t edge_count = 0;
+
+    // 第一遍：收集节点
     while (std::getline(csv_file, line)) {
         std::istringstream iss(line);
-        std::string start_id, start_label, edge_label, end_id, end_label;
+        std::string start_id, end_id;
         if (std::getline(iss, start_id, ',') &&
-            std::getline(iss, start_label, ',') &&
-            std::getline(iss, edge_label, ',') &&
-            std::getline(iss, end_id, ',') && std::getline(iss, end_label)) {
+            std::getline(iss, end_id, ',') &&
+            std::getline(iss, start_id, ',') &&
+            std::getline(iss, end_id, ',')) {
 
-            if (str_to_id_temp.find(start_id) == str_to_id_temp.end()) {
-                str_to_id_temp[start_id] = all_nodes.size();
-                all_nodes.push_back(start_id);
-            }
-            if (str_to_id_temp.find(end_id) == str_to_id_temp.end()) {
-                str_to_id_temp[end_id] = all_nodes.size();
-                all_nodes.push_back(end_id);
-            }
+            // 写入起始节点
+            uint32_t len = start_id.size();
+            nodes_out.write(reinterpret_cast<const char*>(&len), sizeof(len));
+            nodes_out.write(start_id.c_str(), len);
+
+            // 写入结束节点
+            len = end_id.size();
+            nodes_out.write(reinterpret_cast<const char*>(&len), sizeof(len));
+            nodes_out.write(end_id.c_str(), len);
+
+            edge_count++;
         }
     }
+    nodes_out.close();
 
-    // 分配整数 ID
-    node_count_ = all_nodes.size();
-    for (uint32_t i = 0; i < node_count_; ++i) {
-        str_to_id[all_nodes[i]] = i;
-        id_to_str.push_back(all_nodes[i]);
+    // 第二步：排序和去重节点
+    std::string nodes_sorted = base_dir + "/nodes_sorted.bin";
+    std::string sort_cmd = "sort -u " + nodes_temp + " -o " + nodes_sorted;
+    if (system(sort_cmd.c_str()) != 0) {
+        throw std::runtime_error("Failed to sort nodes");
     }
 
-    // 第二步：处理边
-    std::vector<std::pair<uint32_t, uint32_t>> edges;
+    // 第三步：构建节点映射
+    std::ifstream nodes_in(nodes_sorted, std::ios::binary);
+    std::unordered_map<std::string, uint32_t> str_to_id;
+    std::vector<std::string> id_to_str;
+
+    uint32_t node_id = 0;
+    while (true) {
+        uint32_t len;
+        nodes_in.read(reinterpret_cast<char*>(&len), sizeof(len));
+        if (nodes_in.eof())
+            break;
+
+        std::string str(len, '\0');
+        nodes_in.read(&str[0], len);
+        str_to_id[str] = node_id;
+        id_to_str.push_back(str);
+        node_id++;
+    }
+    node_count_ = node_id;
+    edge_count_ = edge_count;
+
+    // 第四步：处理边（流式处理）
+    std::string edges_temp = base_dir + "/edges_temp.bin";
+    std::ofstream edges_out(edges_temp, std::ios::binary);
+
     csv_file.clear();
     csv_file.seekg(0);
 
     while (std::getline(csv_file, line)) {
         std::istringstream iss(line);
-        std::string start_id, start_label, edge_label, end_id, end_label;
+        std::string start_id, end_id;
         if (std::getline(iss, start_id, ',') &&
-            std::getline(iss, start_label, ',') &&
-            std::getline(iss, edge_label, ',') &&
-            std::getline(iss, end_id, ',') && std::getline(iss, end_label)) {
+            std::getline(iss, end_id, ',') &&
+            std::getline(iss, start_id, ',') &&
+            std::getline(iss, end_id, ',')) {
 
             uint32_t src = str_to_id[start_id];
             uint32_t dst = str_to_id[end_id];
-            edges.emplace_back(src, dst);
+
+            // 写入边
+            edges_out.write(reinterpret_cast<const char*>(&src), sizeof(src));
+            edges_out.write(reinterpret_cast<const char*>(&dst), sizeof(dst));
         }
     }
+    edges_out.close();
 
-    edge_count_ = edges.size();
-
-    // 第三步：构建正向 CSR
-    std::vector<std::vector<uint32_t>> forward_adj(node_count_);
-    for (const auto& edge : edges) {
-        forward_adj[edge.first].push_back(edge.second);
-    }
-
-    // 排序邻居列表
-    for (auto& neighbors : forward_adj) {
-        std::sort(neighbors.begin(), neighbors.end());
+    // 第五步：构建正向 CSR（使用外部排序）
+    std::string edges_sorted = base_dir + "/edges_sorted.bin";
+    sort_cmd = "sort -k1,1 -k2,2 " + edges_temp + " -o " + edges_sorted;
+    if (system(sort_cmd.c_str()) != 0) {
+        throw std::runtime_error("Failed to sort edges");
     }
 
     // 计算 offsets
     std::vector<uint32_t> forward_offsets(node_count_ + 1, 0);
-    for (uint32_t i = 0; i < node_count_; ++i) {
-        forward_offsets[i + 1] = forward_offsets[i] + forward_adj[i].size();
+    std::ifstream edges_sorted_in(edges_sorted, std::ios::binary);
+
+    uint32_t current_src = 0;
+    uint32_t count = 0;
+    while (true) {
+        uint32_t src, dst;
+        edges_sorted_in.read(reinterpret_cast<char*>(&src), sizeof(src));
+        if (edges_sorted_in.eof())
+            break;
+        edges_sorted_in.read(reinterpret_cast<char*>(&dst), sizeof(dst));
+
+        while (current_src < src) {
+            forward_offsets[current_src + 1] = count;
+            current_src++;
+        }
+        count++;
+    }
+    while (current_src <= node_count_) {
+        forward_offsets[current_src + 1] = count;
+        current_src++;
     }
 
-    // 压缩 neighbors
+    // 第六步：构建压缩的 neighbors
     std::vector<uint8_t> forward_neighbors_data;
-    for (const auto& neighbors : forward_adj) {
-        auto compressed = CompressNeighbors(neighbors);
+    edges_sorted_in.clear();
+    edges_sorted_in.seekg(0);
+
+    uint32_t prev_src = 0;
+    std::vector<uint32_t> current_neighbors;
+
+    while (true) {
+        uint32_t src, dst;
+        edges_sorted_in.read(reinterpret_cast<char*>(&src), sizeof(src));
+        if (edges_sorted_in.eof())
+            break;
+        edges_sorted_in.read(reinterpret_cast<char*>(&dst), sizeof(dst));
+
+        if (src != prev_src) {
+            if (!current_neighbors.empty()) {
+                auto compressed = CompressNeighbors(current_neighbors);
+                forward_neighbors_data.insert(forward_neighbors_data.end(),
+                                              compressed.begin(),
+                                              compressed.end());
+                current_neighbors.clear();
+            }
+            prev_src = src;
+        }
+        current_neighbors.push_back(dst);
+    }
+    if (!current_neighbors.empty()) {
+        auto compressed = CompressNeighbors(current_neighbors);
         forward_neighbors_data.insert(forward_neighbors_data.end(),
                                       compressed.begin(), compressed.end());
     }
 
-    // 第四步：构建反向 CSR
-    std::vector<std::vector<uint32_t>> backward_adj(node_count_);
-    for (const auto& edge : edges) {
-        backward_adj[edge.second].push_back(edge.first);
-    }
-
-    for (auto& neighbors : backward_adj) {
-        std::sort(neighbors.begin(), neighbors.end());
-    }
-
-    std::vector<uint32_t> backward_offsets(node_count_ + 1, 0);
-    for (uint32_t i = 0; i < node_count_; ++i) {
-        backward_offsets[i + 1] = backward_offsets[i] + backward_adj[i].size();
-    }
-
-    std::vector<uint8_t> backward_neighbors_data;
-    for (const auto& neighbors : backward_adj) {
-        auto compressed = CompressNeighbors(neighbors);
-        backward_neighbors_data.insert(backward_neighbors_data.end(),
-                                       compressed.begin(), compressed.end());
-    }
-
-    // 第五步：保存数据
-    std::string base_dir =
-        std::filesystem::path(csv_path).parent_path().string() + "/graph_data";
-    std::filesystem::create_directories(base_dir);
-
+    // 第七步：保存数据
     WriteBinaryFile(base_dir + "/forward_offsets.bin", forward_offsets.data(),
                     forward_offsets.size() * sizeof(uint32_t));
     WriteBinaryFile(base_dir + "/forward_neighbors.bin",
                     forward_neighbors_data.data(),
                     forward_neighbors_data.size());
-    WriteBinaryFile(base_dir + "/backward_offsets.bin", backward_offsets.data(),
-                    backward_offsets.size() * sizeof(uint32_t));
-    WriteBinaryFile(base_dir + "/backward_neighbors.bin",
-                    backward_neighbors_data.data(),
-                    backward_neighbors_data.size());
 
     // 保存节点映射
     std::ofstream id_file(base_dir + "/id_to_str.bin", std::ios::binary);
@@ -289,6 +339,11 @@ void GraphStorage::BuildFromCSV(const std::string& csv_path) {
     // 更新内部状态
     str_to_id_ = std::move(str_to_id);
     id_to_str_ = std::move(id_to_str);
+
+    // 清理临时文件
+    std::remove(nodes_temp.c_str());
+    std::remove(edges_temp.c_str());
+    std::remove(edges_sorted.c_str());
 }
 
 uint32_t GraphStorage::OutDegree(uint32_t node_id) const {
@@ -325,6 +380,17 @@ std::vector<uint32_t> GraphStorage::GetOutNeighbors(uint32_t node_id) const {
 std::vector<uint32_t> GraphStorage::GetInNeighbors(uint32_t node_id) const {
     if (node_id >= node_count_)
         return {};
+
+    // 按需加载反向 CSR
+    if (!backward_offsets_.is_mapped) {
+        std::string base_dir = std::filesystem::path("graph_data").string();
+        const_cast<GraphStorage*>(this)->MapFile(
+            base_dir + "/backward_offsets.bin",
+            const_cast<CSR&>(backward_offsets_), true);
+        const_cast<GraphStorage*>(this)->MapFile(
+            base_dir + "/backward_neighbors.bin",
+            const_cast<CSR&>(backward_neighbors_), true);
+    }
 
     const uint32_t* offsets =
         reinterpret_cast<const uint32_t*>(backward_offsets_.data);

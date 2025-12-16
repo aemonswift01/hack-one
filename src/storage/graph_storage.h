@@ -10,7 +10,6 @@
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
-#include <memory>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -45,15 +44,16 @@ class GraphStorage {
 
     std::unordered_map<std::string, uint32_t> str_to_id_;
     std::vector<std::string> id_to_str_;
-    CSR forward_offsets_;
-    CSR forward_neighbors_;
-    CSR backward_offsets_;
-    CSR backward_neighbors_;
+    mutable CSR forward_offsets_;
+    mutable CSR forward_neighbors_;
+    mutable CSR backward_offsets_;
+    mutable CSR backward_neighbors_;
     uint32_t node_count_ = 0;
     uint64_t edge_count_ = 0;
 
-    void MapFile(const std::string& path, CSR& csr, bool read_only = true);
-    void UnmapFile(CSR& csr);
+    void MapFile(const std::string& path, CSR& csr,
+                 bool read_only = true) const;
+    void UnmapFile(CSR& csr) const;
     static std::vector<uint8_t> CompressNeighbors(
         const std::vector<uint32_t>& neighbors);
     static std::vector<uint32_t> DecompressNeighbors(const uint8_t* data,
