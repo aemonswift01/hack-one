@@ -1,25 +1,41 @@
 #include <iostream>
-#include "server.h"
-#include "storage/graph_storage.h"
+#include <vector>
+#include <string>
+#include <cstdint>
+#include "roaring-c.h"
+#include "c_k_hop.h"
+#include "c_conn_comp.h"
+#include "c_common_node.h"
 
-int main(int argc, char* argv[]) {
-    hackathon::GraphStorage storage("graph_data");
-    storage.BuildFromCSV("data/sample.csv");
+// 测试主函数
+int main()
+{
+    std::vector<std::string> test_ids = {"1001", "1002", "1003"};
+    std::vector<std::string> test_labels = {"user", "admin", "guest"};
 
-    // 示例用法
-    uint32_t node_id = storage.StringToId("node1");
-    auto neighbors = storage.GetOutNeighbors(node_id);
-    std::cout << "Node " << node_id << " has " << neighbors.size()
-              << " neighbors\n";
+    // 修正：query是k_hop的成员函数，需先创建对象再调用
+    KHop kh(test_ids, test_labels, 2); // 创建k_hop对象，size=2，limit默认1024M
+    kh.query();
 
-    int port = 8080;
-    if (argc > 1) {
-        port = std::stoi(argv[1]);
+    for (const auto &num : kh.counts)
+    {
+        std::cout << num << ",";
     }
-    initBuf();
-    runServer(port);
+    std::cout << "k_hop_count 完成执行" << std::endl;
 
+    ConnComp conn(test_ids, test_labels);
+    size_t count = conn.query();
+
+    for (const auto &num : kh.counts)
+    {
+        std::cout << num << ",";
+    }
+
+    std::cout << "conn_comp 完成执行:" << count << std::endl;
+
+    CommonNode common(test_ids[0],test_ids[0], test_labels);
+    size_t count0 = common.query();
+
+    std::cout << "common_node 完成执行:" << count0 << std::endl;
     return 0;
 }
-
-//  g++ -g *.cc   -o main
