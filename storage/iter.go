@@ -19,7 +19,7 @@ func newNodeFileIter(nf nodesFile) *nodeFileIter {
 }
 
 func (nfi *nodeFileIter) empty() bool {
-	return nfi.n >= nfi.nodesFile.nodeCount
+	return nfi.n > nfi.nodesFile.nodeCount
 }
 
 func (nfi *nodeFileIter) pick() []byte {
@@ -28,6 +28,8 @@ func (nfi *nodeFileIter) pick() []byte {
 
 func (nfi *nodeFileIter) next() ([]byte, error) {
 	if nfi.n >= nfi.nodesFile.nodeCount {
+		nfi.buf = nil
+		nfi.n++
 		return nil, ErrIterEnd
 	}
 

@@ -12,7 +12,8 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-const chunkSize = 1 * 1024 * 1024 * 1024 // 1GB
+// const chunkSize = 1 * 1024 * 1024 * 1024 // 1GB
+const chunkSize = 64
 
 var (
 	cvsSplit string = ","
@@ -50,6 +51,7 @@ func (s *Storage) BuildFromCSV(csvPath string) error {
 			return errChunkFull
 		}
 
+		offsets = append(offsets, memChunk.offset)
 		idLen := uint32(len(id))
 		labelLen := uint32(len(label))
 		n := copy(memChunk.data[memChunk.offset:], (*(*[4]byte)(unsafe.Pointer(&idLen)))[:])
@@ -74,8 +76,6 @@ func (s *Storage) BuildFromCSV(csvPath string) error {
 
 		_ = ldata[4]
 
-		offsets = append(offsets, memChunk.offset)
-
 		if err = writeNode(memChunk, ldata[0], ldata[1]); err != nil {
 			var nodeFile nodesFile
 			s.sort(memChunk, offsets)
@@ -87,6 +87,7 @@ func (s *Storage) BuildFromCSV(csvPath string) error {
 
 			chunkNodeCount = 0
 			chunkMaxNodeSize = 0
+			offsets = offsets[:0]
 
 			if err = writeNode(memChunk, ldata[0], ldata[1]); err != nil {
 				panic("the size of node is more than a chunk")
@@ -96,7 +97,6 @@ func (s *Storage) BuildFromCSV(csvPath string) error {
 		totalNodeCount++
 
 		// write dst node
-		offsets = append(offsets, memChunk.offset)
 		if err = writeNode(memChunk, ldata[3], ldata[4]); err != nil {
 			var nodeFile nodesFile
 			s.sort(memChunk, offsets)
@@ -108,8 +108,9 @@ func (s *Storage) BuildFromCSV(csvPath string) error {
 
 			chunkNodeCount = 0
 			chunkMaxNodeSize = 0
+			offsets = offsets[:0]
 
-			if err = writeNode(memChunk, ldata[0], ldata[1]); err != nil {
+			if err = writeNode(memChunk, ldata[3], ldata[4]); err != nil {
 				panic("the size of node is more than a chunk")
 			}
 		}
@@ -120,12 +121,12 @@ func (s *Storage) BuildFromCSV(csvPath string) error {
 		el := len(ldata[3]) + len(ldata[4]) + 8
 		if ml < el {
 			ml = el
-			if ml > chunkMaxNodeSize {
-				chunkMaxNodeSize = ml
-			}
-			if ml > totalMaxNodeSize {
-				totalMaxNodeSize = ml
-			}
+		}
+		if ml > chunkMaxNodeSize {
+			chunkMaxNodeSize = ml
+		}
+		if ml > totalMaxNodeSize {
+			totalMaxNodeSize = ml
 		}
 
 		// TODO: write edges
@@ -133,6 +134,7 @@ func (s *Storage) BuildFromCSV(csvPath string) error {
 		lcache = lcache[:0]
 	}
 	if memChunk.offset > 0 {
+		s.sort(memChunk, offsets)
 		nodeFile, _, err := s.flushMemChunk(chunkNodeCount, chunkMaxNodeSize, offsets, memChunk, "node_chunk_")
 		if err != nil {
 			return err
@@ -149,21 +151,36 @@ func (s *Storage) BuildFromCSV(csvPath string) error {
 		return err
 	}
 
-	lt := newLoserTree(nodesChkFiles)
+	lt, err := newMergeTree(nodesChkFiles)
+	if err != nil {
+		return err
+	}
+
 	var last []byte
+
+	var N int
 	for {
 		node := lt.pop()
 		if node == nil {
 			break
 		}
 
-		if bytes.Equal(last, node) {
+		id := node[8 : 8+*(*int32)(unsafe.Pointer(&node[0]))]
+		if bytes.Equal(last, id) {
+			if err := lt.popAdjust(); err != nil {
+				return err
+			}
 			continue
 		}
-		last = append(last[:0], node...)
+		last = append(last[:0], id...)
 
 		_ = copy(allNodeChk.data[allNodeChk.offset:], node)
 		allNodeChk.offset += uint64(totalMaxNodeSize)
+		N++
+
+		if err := lt.popAdjust(); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -182,6 +199,11 @@ func (s *Storage) memChunk(chunkSize int) chunk {
 }
 
 func (s *Storage) mmapChunk(f *os.File, size int) (chunk, error) {
+	// ensure file is large enough for mapping
+	if err := f.Truncate(int64(size)); err != nil {
+		return chunk{}, err
+	}
+
 	data, err := unix.Mmap(
 		int(f.Fd()),
 		0,
@@ -235,10 +257,11 @@ func (s *Storage) flushMemChunk(
 	if err != nil {
 		return nodesFile{}, chunk{}, err
 	}
-	defer f.Close()
+	// do not close f here because we return it to caller
 
 	c, err := s.mmapChunk(f, size)
 	if err != nil {
+		f.Close()
 		return nodesFile{}, chunk{}, err
 	}
 
@@ -250,6 +273,7 @@ func (s *Storage) flushMemChunk(
 		c.offset += uint64(ns)
 	}
 	if err = s.unmapChunk(c); err != nil {
+		f.Close()
 		return nodesFile{}, chunk{}, err
 	}
 
@@ -264,5 +288,6 @@ func (s *Storage) flushMemChunk(
 
 func (s *Storage) nextFile(name string) (*os.File, error) {
 	id := strconv.Itoa(int(s.nextFileID))
-	return os.OpenFile(name+id, os.O_CREATE|os.O_WRONLY, 0644)
+	s.nextFileID++
+	return os.OpenFile(name+id, os.O_CREATE|os.O_RDWR, 0644)
 }

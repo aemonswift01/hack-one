@@ -5,22 +5,25 @@ import (
 	"unsafe"
 )
 
-type loserTree struct {
+type mergeTree struct {
 	size  int
 	nodes []int
 	iters []*nodeFileIter
-	err   error
 }
 
-func newLoserTree(data []nodesFile) *loserTree {
+func newMergeTree(data []nodesFile) (*mergeTree, error) {
 	leafSize := len(data)
 
 	iters := make([]*nodeFileIter, 0, len(data))
 	for _, nf := range data {
-		iters = append(iters, newNodeFileIter(nf))
+		nfi := newNodeFileIter(nf)
+		if _, err := nfi.next(); err != nil {
+			return nil, err
+		}
+		iters = append(iters, nfi)
 	}
 
-	lt := &loserTree{
+	lt := &mergeTree{
 		size:  leafSize,
 		iters: iters,
 		nodes: make([]int, leafSize),
@@ -34,10 +37,10 @@ func newLoserTree(data []nodesFile) *loserTree {
 		lt.adjust(i)
 	}
 
-	return lt
+	return lt, nil
 }
 
-func (l *loserTree) adjust(i int) {
+func (l *mergeTree) adjust(i int) {
 	t := (l.size + i) >> 1
 	for t > 0 {
 		if l.nodes[t] == -1 {
@@ -57,24 +60,27 @@ func (l *loserTree) adjust(i int) {
 	l.nodes[0] = i
 }
 
-func (l *loserTree) compare(i, j int) bool {
-	bi, err := l.iters[i].next()
-	if err != nil {
-		panic(err)
-	}
-	idi := bi[8 : 8+*(*int32)(unsafe.Pointer(&bi[0]))]
-	bj, err := l.iters[j].next()
-	if err != nil {
-		panic(err)
-	}
-	idj := bj[8 : 8+*(*int32)(unsafe.Pointer(&bj[0]))]
+func (l *mergeTree) compare(i, j int) bool {
+	bi := l.iters[i].pick()
+	idi := bi[8 : 8+*(*uint32)(unsafe.Pointer(&bi[0]))]
 
+	bj := l.iters[j].pick()
+	idj := bj[8 : 8+*(*uint32)(unsafe.Pointer(&bj[0]))]
 	return bytes.Compare(idi, idj) < 0
 }
 
-func (l *loserTree) pop() []byte {
+func (l *mergeTree) pop() []byte {
 	index := l.nodes[0]
-	obj := l.iters[index].pick()
+	return l.iters[index].pick()
+}
+
+func (l *mergeTree) popAdjust() error {
+	index := l.nodes[0]
+	_, err := l.iters[index].next()
+	if err != nil && err != ErrIterEnd {
+		return err
+	}
+
 	l.adjust(index)
-	return obj
+	return nil
 }
