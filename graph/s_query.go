@@ -1,4 +1,4 @@
-package main
+package graph
 
 // AdjQueryIterator 邻接查询迭代器
 type AdjQueryIterator struct {

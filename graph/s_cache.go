@@ -1,4 +1,4 @@
-package main
+package graph
 
 import (
 	"runtime"
@@ -27,7 +27,7 @@ func NewCacheManager(csr *BlockedCSR, memPool *MemoryPoolManager) *CacheManager 
 
 // calcBlockMem 计算块内存占用
 func (c *CacheManager) calcBlockMem(block *Block) uint64 {
-	return uint64(len(block.AdjData)) * uint64(unsafe.Sizeof(EdgeData{})) +
+	return uint64(len(block.AdjData))*uint64(unsafe.Sizeof(EdgeData{})) +
 		uint64(len(block.OffsetsOut))*uint64(unsafe.Sizeof(uint32(0))) +
 		uint64(len(block.OffsetsIn))*uint64(unsafe.Sizeof(uint32(0)))
 }
@@ -68,7 +68,7 @@ func (c *CacheManager) GetBlock(blockID uint32) (*Block, error) {
 
 	// 加入热块
 	c.mu.Lock()
-	mem := c.calcBlockMem(block.(*Block))
+	mem := c.calcBlockMem(block)
 	c.currentHotMem += mem
 	for c.currentHotMem > c.maxHotMem {
 		c.EvictColdBlock()
@@ -76,7 +76,7 @@ func (c *CacheManager) GetBlock(blockID uint32) (*Block, error) {
 	c.hotBlocks.Store(blockID, block)
 	c.mu.Unlock()
 
-	return block.(*Block), nil
+	return block, nil
 }
 
 // AddHotBlock 添加热块

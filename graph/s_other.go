@@ -1,18 +1,18 @@
-package main
+package graph
 
 import (
 	"runtime"
 	"syscall"
-	"unsafe"
+	_ "unsafe"
 )
 
 // 常量定义
 const (
-	BLOCK_SIZE         = 65536                  // 每个块的节点数
-	EMERGENCY_POOL_SIZE = 500 * 1024 * 1024     // 500MB应急内存池
-	CACHE_LINE_SIZE    = 128                    // 缓存行大小
-	BATCH_SIZE         = 100000                 // CSV解析批次大小
-	HOT_BLOCK_THRESHOLD = 1000                  // 热块ID阈值
+	BLOCK_SIZE          = 65536             // 每个块的节点数
+	EMERGENCY_POOL_SIZE = 500 * 1024 * 1024 // 500MB应急内存池
+	CACHE_LINE_SIZE     = 128               // 缓存行大小
+	BATCH_SIZE          = 100000            // CSV解析批次大小
+	HOT_BLOCK_THRESHOLD = 1000              // 热块ID阈值
 )
 
 // 内存对齐辅助函数

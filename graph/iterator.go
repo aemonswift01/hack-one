@@ -1,4 +1,4 @@
-package main
+package graph
 
 // Iterator 基础迭代器接口
 type Iterator interface {

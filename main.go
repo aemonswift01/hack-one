@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/aemonswift01/hack-one/graph"
 	"os"
 	"time"
 )
@@ -26,38 +27,38 @@ func main() {
 	}
 
 	// 设置内存限制
-	if err := SetProcessMemLimit(*memLimitMB); err != nil {
+	if err := graph.SetProcessMemLimit(*memLimitMB); err != nil {
 		fmt.Printf("警告：设置内存限制失败：%v，使用系统默认\n", err)
 	}
 
 	// 初始化内存监控
-	memMonitor := NewMemoryMonitor(*memLimitMB)
+	memMonitor := graph.NewMemoryMonitor(*memLimitMB)
 	memMonitor.Start()
 	defer memMonitor.Stop()
 
 	// 初始化核心组件
-	memPool, err := NewMemoryPoolManager()
+	memPool, err := graph.NewMemoryPoolManager()
 	if err != nil {
 		fmt.Printf("初始化内存池失败：%v\n", err)
 		os.Exit(1)
 	}
 	defer memPool.Close()
 
-	csr, err := NewBlockedCSR("./cold_blocks")
+	csr, err := graph.NewBlockedCSR("./cold_blocks")
 	if err != nil {
 		fmt.Printf("初始化CSR存储失败：%v\n", err)
 		os.Exit(1)
 	}
 
-	cache := NewCacheManager(csr, memPool)
-	loader := NewCSVLoader()
+	cache := graph.NewCacheManager(csr, memPool)
+	loader := graph.NewCSVLoader()
 
-	pointIDMap := NewStringIdMapping()
-	pointLabelMap := NewLabelMapping()
-	edgeLabelMap := NewLabelMapping()
+	pointIDMap := graph.NewStringIdMapping()
+	pointLabelMap := graph.NewLabelMapping()
+	edgeLabelMap := graph.NewLabelMapping()
 
 	// 统计行数
-	lineCount, err := CountCSVLines(*csvPath)
+	lineCount, err := graph.CountCSVLines(*csvPath)
 	if err != nil {
 		fmt.Printf("统计CSV行数失败：%v\n", err)
 		os.Exit(1)
@@ -77,12 +78,12 @@ func main() {
 	dur := time.Since(start)
 
 	// 内存统计
-	postMem := GetUsedMemory()
+	postMem := graph.GetUsedMemory()
 	fmt.Printf("导入完成！耗时：%v，内存占用：%dMB，查询可用内存：%dMB\n",
 		dur, postMem, *memLimitMB-postMem)
 
 	// 初始化查询管理器
-	queryMgr := NewQueryManager(csr, cache, memPool)
+	queryMgr := graph.NewQueryManager(csr, cache, memPool)
 	// 分配查询内存（预留1GB系统内存）
 	queryMgr.AllocQueryMem(*memLimitMB - postMem - 1000)
 

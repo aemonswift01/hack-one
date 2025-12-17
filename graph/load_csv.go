@@ -1,8 +1,9 @@
-package main
+package graph
 
 import (
 	"bufio"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
 )
@@ -125,22 +126,22 @@ func (c *CSVLoader) parseCSVRecord(line string, pointIDMap *StringIdMapping,
 
 	// 构建出边
 	outEdge := EdgeData{
-		EdgeID:        edgeID,
-		NodeID:        endID,
-		EdgeLabelID:   edgeLabelID,
-		IsOut:         1,
-		StartLabelID:  startLabelID,
-		EndLabelID:    endLabelID,
+		EdgeID:       edgeID,
+		NodeID:       endID,
+		EdgeLabelID:  edgeLabelID,
+		IsOut:        1,
+		StartLabelID: startLabelID,
+		EndLabelID:   endLabelID,
 	}
 
 	// 构建入边
 	inEdge := EdgeData{
-		EdgeID:        edgeID,
-		NodeID:        startID,
-		EdgeLabelID:   edgeLabelID,
-		IsOut:         0,
-		StartLabelID:  endLabelID,
-		EndLabelID:    startLabelID,
+		EdgeID:       edgeID,
+		NodeID:       startID,
+		EdgeLabelID:  edgeLabelID,
+		IsOut:        0,
+		StartLabelID: endLabelID,
+		EndLabelID:   startLabelID,
 	}
 
 	// 写入出边块

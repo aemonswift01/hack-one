@@ -1,8 +1,9 @@
-package main
+package graph
 
 import (
 	"bufio"
 	"compress/lzw"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -12,12 +13,12 @@ import (
 
 // EdgeData 边数据结构（出边+入边）
 type EdgeData struct {
-	EdgeID        uint32 // 8亿边ID（32bit）
-	NodeID        uint32 // 3亿点ID（32bit）
-	EdgeLabelID   uint8  // 边标签ID（0-255）
-	IsOut         uint8  // 0=入边，1=出边
-	StartLabelID  uint8  // 起点标签ID
-	EndLabelID    uint8  // 终点标签ID
+	EdgeID       uint32 // 8亿边ID（32bit）
+	NodeID       uint32 // 3亿点ID（32bit）
+	EdgeLabelID  uint8  // 边标签ID（0-255）
+	IsOut        uint8  // 0=入边，1=出边
+	StartLabelID uint8  // 起点标签ID
+	EndLabelID   uint8  // 终点标签ID
 }
 
 // Block 块结构（CSR核心）
