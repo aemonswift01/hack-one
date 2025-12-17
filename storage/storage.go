@@ -25,7 +25,7 @@ type Storage struct {
 	BaseDir    string
 }
 
-func (s *Storage) BuildFromCSV(baseDir, csvPath string) error {
+func (s *Storage) BuildFromCSV(csvPath string) error {
 	f, err := os.OpenFile(csvPath, os.O_RDONLY, 0644)
 	if err != nil {
 		return err
@@ -131,6 +131,13 @@ func (s *Storage) BuildFromCSV(baseDir, csvPath string) error {
 		// TODO: write edges
 
 		lcache = lcache[:0]
+	}
+	if memChunk.offset > 0 {
+		nodeFile, _, err := s.flushMemChunk(chunkNodeCount, chunkMaxNodeSize, offsets, memChunk, "node_chunk_")
+		if err != nil {
+			return err
+		}
+		nodesChkFiles = append(nodesChkFiles, nodeFile)
 	}
 
 	allNode, err := s.nextFile("node")

@@ -1,0 +1,10 @@
+P5_5,Person,KNOWS,P5_2,Person
+NYC,City,LOCATED_IN,FRA,Country
+NYC,City,LOCATED_IN,JPN,Country
+COMP4,Company,LOCATED_IN,NYC,City
+P5_17,Person,WORKS_FOR,COMP1,Company
+P5_8,Person,FRIEND_OF,P3_6,Person
+PAR,City,LOCATED_IN,JPN,Country
+P1_6,Person,FRIEND_OF,P5_5,Person
+P4_10,Person,KNOWS,P2_16,Person
+P4_11,Person,FRIEND_OF,P5_18,Person
