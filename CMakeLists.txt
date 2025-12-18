@@ -4,23 +4,49 @@ project(GraphEngine)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -DNDEBUG")
 
-file(GLOB_RECURSE SOURCES "src/*.cpp" "src/*.c")
+# file(GLOB_RECURSE SOURCES "src/*.cpp" "src/*.c")
 
-add_executable(importer src/import_main.cpp src/GraphStorage.cpp src/IdMapper.cpp src/MmappedCSR.cpp)
-target_include_directories(importer PRIVATE include src)
+# add_executable(importer src/import_main.cpp src/GraphStorage.cpp src/IdMapper.cpp src/MmappedCSR.cpp)
+# target_include_directories(importer PRIVATE include src)
 
-add_executable(query_example src/query_example.cpp src/GraphStorage.cpp src/IdMapper.cpp src/MmappedCSR.cpp)
-target_include_directories(query_example PRIVATE include src)
-
-
-target_include_directories(importer PRIVATE include)
-target_include_directories(query_example PRIVATE include)
-# 新增 main 可执行文件
-add_executable(graph_engine src/main.cpp src/GraphStorage.cpp src/IdMapper.cpp src/MmappedCSR.cpp)
-target_include_directories(graph_engine PRIVATE include)
+# add_executable(query_example src/query_example.cpp src/GraphStorage.cpp src/IdMapper.cpp src/MmappedCSR.cpp)
+# target_include_directories(query_example PRIVATE include src)
 
 
+# target_include_directories(importer PRIVATE include)
+# target_include_directories(query_example PRIVATE include)
+# # 新增 main 可执行文件
+# add_executable(graph_engine src/main.cpp src/GraphStorage.cpp src/IdMapper.cpp src/MmappedCSR.cpp)
+# target_include_directories(graph_engine PRIVATE include)
 
+if(POLICY CMP0135)
+  cmake_policy(SET CMP0135 NEW)
+endif()
+
+
+if (DEFINED PROJECT_3RDS_DIR)
+    message("DEFINE PROJECT_3RDS_DIR ${PROJECT_3RDS_DIR}")
+else()
+    set(PROJECT_3RDS_DIR ${PROJECT_SOURCE_DIR}/3rds)
+    message("NEW DEFINE  PROJECT_3RDS_DIR ${PROJECT_3RDS_DIR}")
+endif()
+
+
+# find_package(crow CONFIG QUIET)
+
+# if(NOT crow)
+#     include(FetchContent)
+
+#     message(STATUS "crow not found, downloading via FetchContent...")
+
+#     #set(FETCHCONTENT_SOURCE_DIR_CROW ${PROJECT_3RDS_DIR}/Crow-1.3.0)
+    
+#     FetchContent_Declare(crow
+#     URL https://github.com/CrowCpp/Crow/archive/refs/tags/v1.3.0.tar.gz)
+#     FetchContent_MakeAvailable(crow)
+# endif()
+
+add_subdirectory(src)
 
 # cmake_minimum_required(VERSION 3.20)
 # project(hack-one LANGUAGES CXX)

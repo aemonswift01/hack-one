@@ -1,12 +1,13 @@
-#include "../include/IdMapper.hpp"
-#include <fstream>
-#include <filesystem>
-#include <cstring>
+#include "IdMapper.hpp"
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include "xxh3.h"
+#include <cstring>
+#include <filesystem>
+#include <fstream>
+
+#include "xxhash.h"
 
 IdMapper::~IdMapper() {
     if (hashes_) {
@@ -17,34 +18,38 @@ IdMapper::~IdMapper() {
 void IdMapper::load(const std::string& dir) {
     std::string hashes_path = dir + "/id_hashes.bin";
     std::string ids_path = dir + "/id_internal_ids.bin";
-    
+
     // Map hashes file
     int fd_hashes = open(hashes_path.c_str(), O_RDONLY);
-    if (fd_hashes == -1) throw std::runtime_error("Failed to open " + hashes_path);
-    
+    if (fd_hashes == -1)
+        throw std::runtime_error("Failed to open " + hashes_path);
+
     struct stat st;
     if (fstat(fd_hashes, &st) == -1) {
         close(fd_hashes);
         throw std::runtime_error("Failed to stat " + hashes_path);
     }
-    
+
     mapped_size_ = st.st_size;
     num_nodes_ = mapped_size_ / sizeof(uint64_t);
-    
-    hashes_ = (const uint64_t*)mmap(nullptr, mapped_size_, PROT_READ, MAP_PRIVATE, fd_hashes, 0);
+
+    hashes_ = (const uint64_t*)mmap(nullptr, mapped_size_, PROT_READ,
+                                    MAP_PRIVATE, fd_hashes, 0);
     close(fd_hashes);
-    
+
     if (hashes_ == MAP_FAILED) {
         throw std::runtime_error("Failed to mmap " + hashes_path);
     }
-    
+
     // Map ids file
     int fd_ids = open(ids_path.c_str(), O_RDONLY);
-    if (fd_ids == -1) throw std::runtime_error("Failed to open " + ids_path);
-    
-    ids_ = (const uint32_t*)mmap(nullptr, mapped_size_, PROT_READ, MAP_PRIVATE, fd_ids, 0);
+    if (fd_ids == -1)
+        throw std::runtime_error("Failed to open " + ids_path);
+
+    ids_ = (const uint32_t*)mmap(nullptr, mapped_size_, PROT_READ, MAP_PRIVATE,
+                                 fd_ids, 0);
     close(fd_ids);
-    
+
     if (ids_ == MAP_FAILED) {
         munmap((void*)hashes_, mapped_size_);
         hashes_ = nullptr;
@@ -52,9 +57,10 @@ void IdMapper::load(const std::string& dir) {
     }
 }
 
-std::optional<uint32_t> IdMapper::external_id_to_internal(std::string_view external_id) const {
+std::optional<uint32_t> IdMapper::external_id_to_internal(
+    std::string_view external_id) const {
     uint64_t hash = hash_string(external_id);
-    
+
     // Binary search
     size_t left = 0, right = num_nodes_ - 1;
     while (left <= right) {
@@ -67,10 +73,10 @@ std::optional<uint32_t> IdMapper::external_id_to_internal(std::string_view exter
             right = mid - 1;
         }
     }
-    
+
     return std::nullopt;
 }
 
 uint64_t IdMapper::hash_string(std::string_view s) {
-    return XXH3(s.data(), s.size());
+    return XXH32(s.data(), s.size(), 0);
 }

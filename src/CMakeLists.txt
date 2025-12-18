@@ -1,19 +1,11 @@
-# 在 src/CMakeLists.txt 中添加
-add_subdirectory(storage)
 
-# 创建 src/storage/CMakeLists.txt
-add_library(storage
-    graph_storage.cc
-)
 
-target_include_directories(storage PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}
-)
 
-target_link_libraries(storage
-    PRIVATE
-    utils
-)
+file(GLOB SOURCES CONFIGURE_DEPENDS *.cpp)
 
-add_subdirectory(compute)
-add_subdirectory(http)
+add_executable(main ${SOURCES} )
+
+# target_link_libraries(main
+#     PRIVATE
+#     xxHash
+# )

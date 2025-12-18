@@ -1,19 +1,22 @@
-#include <iostream>
-#include <fstream>
-#include <string>
-#include <string_view>
-#include <vector>
-#include <unordered_map>
-#include <algorithm>
+#define XXH_STATIC_LINKING_ONLY /* access advanced declarations */
+#define XXH_IMPLEMENTATION      /* access definitions */
+
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
 #include <filesystem>
-#include "../include/LabelRegistry.hpp"
-#include "xxh3.h"
+#include <fstream>
+#include <iostream>
+#include <string>
+#include <string_view>
+#include <unordered_map>
+#include <vector>
+#include "LabelRegistry.hpp"
+#include "xxhash.h"
 
 // ------------------------------------------------------------
 // Helper: fast line parsing (no copy)
@@ -27,21 +30,21 @@ struct ParsedEdge {
 
 ParsedEdge parse_csv_line(std::string_view line) {
     size_t p0 = line.find(',');
-    if (p0 == std::string_view::npos) throw std::runtime_error("Invalid line");
+    if (p0 == std::string_view::npos)
+        throw std::runtime_error("Invalid line");
     size_t p1 = line.find(',', p0 + 1);
-    if (p1 == std::string_view::npos) throw std::runtime_error("Invalid line");
+    if (p1 == std::string_view::npos)
+        throw std::runtime_error("Invalid line");
     size_t p2 = line.find(',', p1 + 1);
-    if (p2 == std::string_view::npos) throw std::runtime_error("Invalid line");
+    if (p2 == std::string_view::npos)
+        throw std::runtime_error("Invalid line");
     size_t p3 = line.find(',', p2 + 1);
-    if (p3 == std::string_view::npos) throw std::runtime_error("Invalid line");
+    if (p3 == std::string_view::npos)
+        throw std::runtime_error("Invalid line");
 
-    return {
-        line.substr(0, p0),
-        line.substr(p0 + 1, p1 - p0 - 1),
-        line.substr(p1 + 1, p2 - p1 - 1),
-        line.substr(p2 + 1, p3 - p2 - 1),
-        line.substr(p3 + 1)
-    };
+    return {line.substr(0, p0), line.substr(p0 + 1, p1 - p0 - 1),
+            line.substr(p1 + 1, p2 - p1 - 1), line.substr(p2 + 1, p3 - p2 - 1),
+            line.substr(p3 + 1)};
 }
 
 // ------------------------------------------------------------
@@ -49,20 +52,18 @@ ParsedEdge parse_csv_line(std::string_view line) {
 template <typename T>
 void write_binary_file(const std::string& path, const std::vector<T>& data) {
     std::ofstream f(path, std::ios::binary);
-    f.write(reinterpret_cast<const char*>(data.data()), data.size() * sizeof(T));
+    f.write(reinterpret_cast<const char*>(data.data()),
+            data.size() * sizeof(T));
 }
 
 // ------------------------------------------------------------
 // Helper: transpose CSR
-void transpose_csr(
-    const std::vector<uint32_t>& out_offsets,
-    const std::vector<uint32_t>& out_neighbors,
-    const std::vector<uint8_t>& out_edge_labels,
-    size_t num_nodes,
-    std::vector<uint32_t>& in_offsets,
-    std::vector<uint32_t>& in_neighbors,
-    std::vector<uint8_t>& in_edge_labels
-) {
+void transpose_csr(const std::vector<uint32_t>& out_offsets,
+                   const std::vector<uint32_t>& out_neighbors,
+                   const std::vector<uint8_t>& out_edge_labels,
+                   size_t num_nodes, std::vector<uint32_t>& in_offsets,
+                   std::vector<uint32_t>& in_neighbors,
+                   std::vector<uint8_t>& in_edge_labels) {
     // Step 1: count in-degrees
     std::vector<uint32_t> in_degree(num_nodes, 0);
     for (uint32_t v : out_neighbors) {
@@ -79,7 +80,7 @@ void transpose_csr(
     // Step 3: fill in_neighbors and in_edge_labels
     in_neighbors.resize(out_neighbors.size());
     in_edge_labels.resize(out_edge_labels.size());
-    
+
     // Reset in_degree for reuse as position counters
     std::fill(in_degree.begin(), in_degree.end(), 0);
 
@@ -99,7 +100,8 @@ void transpose_csr(
 // Main import function
 int main(int argc, char* argv[]) {
     if (argc != 3) {
-        std::cerr << "Usage: " << argv[0] << " <input_csv> <output_dir>" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <input_csv> <output_dir>"
+                  << std::endl;
         return 1;
     }
 
@@ -123,35 +125,44 @@ int main(int argc, char* argv[]) {
         {
             std::ifstream infile(input_csv);
             if (!infile) {
-                throw std::runtime_error("Failed to open input file: " + input_csv);
+                throw std::runtime_error("Failed to open input file: " +
+                                         input_csv);
             }
 
             std::string line;
-            std::getline(infile, line); // Skip header
+            std::getline(infile, line);  // Skip header
 
             while (std::getline(infile, line)) {
                 try {
                     ParsedEdge edge = parse_csv_line(line);
 
                     // Register source node
-                    if (external_to_internal.find(std::string(edge.src_id)) == external_to_internal.end()) {
+                    if (external_to_internal.find(std::string(edge.src_id)) ==
+                        external_to_internal.end()) {
                         uint32_t internal_id = external_to_internal.size();
-                        external_to_internal[std::string(edge.src_id)] = internal_id;
+                        external_to_internal[std::string(edge.src_id)] =
+                            internal_id;
                     }
 
                     // Register destination node
-                    if (external_to_internal.find(std::string(edge.dst_id)) == external_to_internal.end()) {
+                    if (external_to_internal.find(std::string(edge.dst_id)) ==
+                        external_to_internal.end()) {
                         uint32_t internal_id = external_to_internal.size();
-                        external_to_internal[std::string(edge.dst_id)] = internal_id;
+                        external_to_internal[std::string(edge.dst_id)] =
+                            internal_id;
                     }
 
                     // Register labels
-                    node_label_registry.get_or_assign(std::string(edge.src_label));
-                    node_label_registry.get_or_assign(std::string(edge.dst_label));
-                    edge_label_registry.get_or_assign(std::string(edge.edge_label));
+                    node_label_registry.get_or_assign(
+                        std::string(edge.src_label));
+                    node_label_registry.get_or_assign(
+                        std::string(edge.dst_label));
+                    edge_label_registry.get_or_assign(
+                        std::string(edge.edge_label));
 
                 } catch (const std::exception& e) {
-                    std::cerr << "Warning: " << e.what() << " (skipping line)" << std::endl;
+                    std::cerr << "Warning: " << e.what() << " (skipping line)"
+                              << std::endl;
                     continue;
                 }
             }
@@ -167,7 +178,7 @@ int main(int argc, char* argv[]) {
         std::vector<uint8_t> node_labels(num_nodes);
 
         for (const auto& [external_id, internal_id] : external_to_internal) {
-            uint64_t hash = XXH3(external_id.data(), external_id.size());
+            uint64_t hash = XXH32(external_id.data(), external_id.size(), 0);
             hash_to_internal.emplace_back(hash, internal_id);
         }
 
@@ -188,22 +199,27 @@ int main(int argc, char* argv[]) {
         std::cout << "Pass 2: Building CSR..." << std::endl;
 
         std::vector<uint32_t> out_offsets(num_nodes + 1, 0);
-        std::vector<std::vector<std::pair<uint32_t, uint8_t>>> adj_list(num_nodes);
+        std::vector<std::vector<std::pair<uint32_t, uint8_t>>> adj_list(
+            num_nodes);
 
         {
             std::ifstream infile(input_csv);
             std::string line;
-            std::getline(infile, line); // Skip header
+            std::getline(infile, line);  // Skip header
 
             while (std::getline(infile, line)) {
                 try {
                     ParsedEdge edge = parse_csv_line(line);
 
-                    uint32_t src_internal = external_to_internal.at(std::string(edge.src_id));
-                    uint32_t dst_internal = external_to_internal.at(std::string(edge.dst_id));
-                    uint8_t edge_label_id = edge_label_registry.get_or_assign(std::string(edge.edge_label));
+                    uint32_t src_internal =
+                        external_to_internal.at(std::string(edge.src_id));
+                    uint32_t dst_internal =
+                        external_to_internal.at(std::string(edge.dst_id));
+                    uint8_t edge_label_id = edge_label_registry.get_or_assign(
+                        std::string(edge.edge_label));
 
-                    adj_list[src_internal].emplace_back(dst_internal, edge_label_id);
+                    adj_list[src_internal].emplace_back(dst_internal,
+                                                        edge_label_id);
                     out_offsets[src_internal + 1]++;
 
                 } catch (const std::exception& e) {
@@ -242,7 +258,7 @@ int main(int argc, char* argv[]) {
         std::vector<uint8_t> in_edge_labels;
 
         transpose_csr(out_offsets, out_neighbors, out_edge_labels, num_nodes,
-                     in_offsets, in_neighbors, in_edge_labels);
+                      in_offsets, in_neighbors, in_edge_labels);
 
         // ------------------------
         // Write output files
@@ -252,8 +268,10 @@ int main(int argc, char* argv[]) {
         // Meta data
         {
             std::ofstream meta_file(output_dir + "/meta.bin", std::ios::binary);
-            meta_file.write(reinterpret_cast<const char*>(&num_nodes), sizeof(num_nodes));
-            meta_file.write(reinterpret_cast<const char*>(&num_edges), sizeof(num_edges));
+            meta_file.write(reinterpret_cast<const char*>(&num_nodes),
+                            sizeof(num_nodes));
+            meta_file.write(reinterpret_cast<const char*>(&num_edges),
+                            sizeof(num_edges));
         }
 
         // ID mapping
@@ -271,12 +289,14 @@ int main(int argc, char* argv[]) {
 
         // Label strings
         {
-            std::ofstream node_labels_file(output_dir + "/node_label_strings.txt");
+            std::ofstream node_labels_file(output_dir +
+                                           "/node_label_strings.txt");
             for (const auto& label : node_label_registry.get_strings()) {
                 node_labels_file << label << std::endl;
             }
 
-            std::ofstream edge_labels_file(output_dir + "/edge_label_strings.txt");
+            std::ofstream edge_labels_file(output_dir +
+                                           "/edge_label_strings.txt");
             for (const auto& label : edge_label_registry.get_strings()) {
                 edge_labels_file << label << std::endl;
             }
