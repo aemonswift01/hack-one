@@ -16,4 +16,3 @@ target_link_libraries(storage
 )
 
 add_subdirectory(compute)
-add_subdirectory(http)

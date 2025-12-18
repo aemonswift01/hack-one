@@ -7,7 +7,7 @@ if (DEFINED PROJECT_3RDS_DIR)
     message("DEFINE PROJECT_3RDS_DIR ${PROJECT_3RDS_DIR}")
 else()
     set(PROJECT_3RDS_DIR ${PROJECT_SOURCE_DIR}/3rds)
-    message("NEE DEFINE  PROJECT_3RDS_DIR ${PROJECT_3RDS_DIR}")
+    #message("NEE DEFINE  PROJECT_3RDS_DIR ${PROJECT_3RDS_DIR}")
 endif()
 
 if(POLICY CMP0135)
@@ -15,18 +15,18 @@ if(POLICY CMP0135)
 endif()
 
 
-# find_package(jsoncpp CONFIG QUIET)
+# find_package(rapidjson CONFIG QUIET)
 
-# if(NOT jsoncpp_FOUND)
+# if(NOT rapidjson_FOUND)
 #     include(FetchContent)
 
-#     message(STATUS "jsoncpp not found, downloading via FetchContent...")
+#     message(STATUS "rapidjson not found, downloading via FetchContent...")
 
-#     set(FETCHCONTENT_SOURCE_DIR_JSONCPP ${PROJECT_3RDS_DIR}/jsoncpp-1.9.4)
+#     set(FETCHCONTENT_SOURCE_DIR_RAPIDJSON ${PROJECT_3RDS_DIR}/rapidjson-1.1.0)
     
-#     FetchContent_Declare(jsoncpp
-#     URL https://github.com/open-source-parsers/jsoncpp/archive/1.9.4.tar.gz)
-#     FetchContent_MakeAvailable(jsoncpp)
+#     FetchContent_Declare(rapidjson
+#     URL https://github.com/Tencent/rapidjson/archive/refs/tags/v1.1.0.tar.gz)
+#     FetchContent_MakeAvailable(rapidjson)
 # endif()
 
 # find_package(folly CONFIG QUIET)
@@ -42,17 +42,19 @@ endif()
 # endif()
 
 
-# find_package(roaring CONFIG QUIET)
+find_package(roaring CONFIG QUIET)
 
-# if(NOT roaring_FOUND)
-#     include(FetchContent)
+if(NOT roaring_FOUND)
+    include(FetchContent)
 
-#     message(STATUS "roaring not found, downloading via FetchContent...")
+    message(STATUS "roaring not found, downloading via FetchContent...")
 
-#     FetchContent_Declare(roaring
-#     URL https://github.com/RoaringBitmap/CRoaring/archive/refs/tags/v4.5.0.tar.gz)
-#     FetchContent_MakeAvailable(roaring)
-# endif()
+    set(FETCHCONTENT_SOURCE_DIR_CROARING ${PROJECT_3RDS_DIR}/CRoaring)
+
+    FetchContent_Declare(roaring
+    URL https://github.com/RoaringBitmap/CRoaring/archive/refs/tags/v4.5.0.tar.gz)
+    FetchContent_MakeAvailable(roaring)
+endif()
 
 add_subdirectory(src)
 

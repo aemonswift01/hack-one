@@ -115,7 +115,7 @@ void runServer(int port) {
         }
         buffer[bytes] = '\0';
 
-        std::string_view requestStr(buffer + 5);  //POST离开
+        std::string_view requestStr(buffer + 5, buffer + bytes);  //POST离开
         HttpRequest req = parseHttpRequest(requestStr);
         auto responseLen = handleRequest(req);
         // resbuf[responseLen + 1] = '\0';
